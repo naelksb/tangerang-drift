@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Wangan Tokyo HD: 10 Cars & 4 Maps</title>
+    <!-- Three.js r128 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,700;0,900;1,900&display=swap');
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body {
+            background-color: #020105; color: #fff;
+            font-family: 'Montserrat', sans-serif;
+            overflow: hidden; touch-action: none;
+        }
+
+        #game-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; }
+        canvas { display: block; width: 100%; height: 100%; outline: none; }
+
+        /* --- UI HUD --- */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column;
+            justify-content: space-between; padding: 30px; z-index: 10;
+        }
+
+        .hud-top { display: flex; justify-content: space-between; align-items: flex-start; }
+
+        .hud-panel {
+            background: linear-gradient(135deg, rgba(10, 5, 20, 0.8), rgba(30, 15, 60, 0.8));
+            border-radius: 8px; padding: 15px 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            box-shadow: 0 10px 30px rgba(0, 243, 255, 0.1);
+        }
+
+        .score-label { font-size: 0.8rem; color: #00f3ff; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
+        .score-value { font-size: 2.5rem; font-weight: 900; color: #fff; text-shadow: 0 0 15px rgba(0, 243, 255, 0.6); line-height: 1; margin-top: 5px; }
+
+        .speed-wrapper { text-align: right; }
+        .speed-value { font-size: 4rem; font-weight: 900; font-style: italic; color: #fff; text-shadow: 0 0 25px #ff007f; line-height: 0.9; }
+        .speed-label { font-size: 1rem; color: #ff007f; font-weight: 800; letter-spacing: 3px; }
+
+        #nos-bar-container {
+            width: 180px; height: 10px; background: rgba(0,0,0,0.7);
+            border-radius: 5px; margin-top: 10px; overflow: hidden;
+            border: 1px solid #333;
+        }
+        #nos-bar {
+            width: 100%; height: 100%; border-radius: 5px;
+            background: linear-gradient(90deg, #ff007f, #ffaa00);
+            box-shadow: 0 0 15px #ff007f; transition: width 0.1s;
+        }
+
+        /* --- SCREENS --- */
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, rgba(10,5,25,0.95) 0%, rgba(0,0,0,1) 100%);
+            backdrop-filter: blur(15px);
+            display: flex; flex-direction: column; justify-content: flex-start; align-items: center;
+            padding: 40px 0 120px 0; overflow-y: auto;
+            pointer-events: auto; z-index: 20; transition: opacity 0.4s ease;
+        }
+
+        h1 {
+            font-size: 4rem; font-weight: 900; font-style: italic; color: #fff;
+            text-transform: uppercase; line-height: 1; margin-bottom: 5px;
+            text-shadow: 0 0 30px #00f3ff, 4px 4px 0px #ff007f; text-align: center;
+        }
+
+        .subtitle {
+            font-size: 1rem; color: #fff; font-weight: 700; letter-spacing: 8px;
+            margin-bottom: 20px; text-shadow: 0 0 10px rgba(255,255,255,0.5); text-align: center;
+        }
+
+        /* --- SELECTION UI --- */
+        #selection-container {
+            display: flex; flex-direction: column; gap: 20px; align-items: center; justify-content: center;
+            width: 90%; max-width: 1000px; margin-bottom: 20px;
+        }
+        
+        .selection-row {
+            display: flex; gap: 20px; width: 100%;
+            flex-wrap: wrap; /* Agar responsif jika layar sempit */
+        }
+
+        .list-container {
+            flex: 1; max-height: 200px; min-width: 250px; overflow-y: auto; 
+            background: rgba(0,0,0,0.5); border: 1px solid #00f3ff; border-radius: 10px;
+            padding: 10px;
+        }
+        
+        .list-container::-webkit-scrollbar { width: 8px; }
+        .list-container::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        .list-container::-webkit-scrollbar-thumb { background: #00f3ff; border-radius: 4px; }
+
+        .list-item {
+            padding: 12px 15px; margin-bottom: 8px; border-radius: 6px;
+            background: rgba(255,255,255,0.05); cursor: pointer;
+            transition: all 0.2s; border-left: 4px solid transparent;
+            font-weight: 700; font-size: 1rem; display: flex; justify-content: space-between;
+        }
+        .list-item:hover { background: rgba(0,243,255,0.1); }
+        .list-item.active {
+            background: rgba(0,243,255,0.2); border-left-color: #00f3ff;
+            box-shadow: inset 0 0 20px rgba(0,243,255,0.2); color: #00f3ff;
+            text-shadow: 0 0 10px #00f3ff;
+        }
+
+        .stats-panel {
+            flex: 1; background: rgba(0,0,0,0.5); padding: 25px;
+            border-radius: 10px; border: 1px solid #ff007f;
+            display: flex; flex-direction: column; gap: 15px;
+        }
+        
+        .stat-row { display: flex; align-items: center; }
+        .stat-label { width: 100px; font-weight: 700; color: #ccc; font-size: 0.9rem; }
+        .stat-bar-bg { flex: 1; height: 10px; background: #222; border-radius: 5px; overflow: hidden; }
+        .stat-bar-fill { height: 100%; border-radius: 5px; transition: width 0.3s ease; }
+        
+        .c-info { font-size: 0.85rem; color: #888; margin-top: 10px; font-style: italic; }
+
+        .controls-info {
+            background: rgba(255,255,255,0.05); padding: 10px 20px; border-radius: 8px;
+            margin-bottom: 20px; font-size: 0.9rem; color: #ccc; display: flex; gap: 15px;
+            flex-wrap: wrap; justify-content: center;
+        }
+        .key-hl { color: #fff; font-weight: 800; background: #ff007f; padding: 2px 6px; border-radius: 4px; margin: 0 3px; }
+
+        #btn-start {
+            background: linear-gradient(90deg, #00f3ff, #ff007f);
+            color: #fff; font-family: 'Montserrat', sans-serif;
+            border: none; border-radius: 50px;
+            padding: 20px 60px; font-size: 1.8rem; font-weight: 900;
+            cursor: pointer; letter-spacing: 4px; text-transform: uppercase;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.6), inset 0 0 10px rgba(255,255,255,0.5);
+            animation: pulse-glow 2s infinite;
+            /* Kunci tombol agar selalu terlihat di bawah */
+            position: fixed;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 999;
+        }
+        #btn-start:hover {
+            transform: translateX(-50%) scale(1.05);
+            box-shadow: 0 0 50px rgba(255, 0, 127, 0.8);
+        }
+
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 20px rgba(0, 243, 255, 0.4); }
+            50% { box-shadow: 0 0 50px rgba(0, 243, 255, 0.9), 0 0 20px #ff007f; }
+            100% { box-shadow: 0 0 20px rgba(0, 243, 255, 0.4); }
+        }
+
+        .hidden { display: none !important; opacity: 0; pointer-events: none; }
+        
+        /* --- STYLE UNTUK OVERLAY TOMBOL PLAY BARU --- */
+        @keyframes giantPulse {
+            0% { transform: scale(1); box-shadow: 0 0 40px rgba(0, 243, 255, 0.6); }
+            50% { transform: scale(1.1); box-shadow: 0 0 80px rgba(0, 243, 255, 1), 0 0 40px #ff007f; }
+            100% { transform: scale(1); box-shadow: 0 0 40px rgba(0, 243, 255, 0.6); }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ========================================================================= -->
+<!-- INI TOMBOL PLAY YANG DIMINTA (DITAMBAHKAN TANPA MERUBAH KODE LAIN) -->
+<div id="play-button-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(2, 1, 5, 0.95); z-index: 9999999; display: flex; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(10px);">
+    <button id="the-giant-play-btn" style="width: 150px; height: 150px; background: linear-gradient(135deg, #00f3ff, #ff007f); border: 5px solid white; border-radius: 50%; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 0 50px rgba(0, 243, 255, 0.8); transition: transform 0.2s; animation: giantPulse 1.5s infinite;">
+        <!-- Ikon Play SVG -->
+        <svg width="80" height="80" viewBox="0 0 24 24" fill="white" style="margin-left: 15px;">
+            <path d="M8 5v14l11-7z"/>
+        </svg>
+    </button>
+    <h2 style="color: white; font-family: 'Montserrat', sans-serif; font-size: 2.5rem; font-weight: 900; letter-spacing: 5px; margin-top: 30px; text-shadow: 0 0 20px #00f3ff; text-align: center;">PLAY GAME</h2>
+    <p style="color: #aaa; font-family: 'Montserrat', sans-serif; margin-top: 10px; font-size: 1rem; text-align: center; max-width: 80%;">Klik tombol play di atas untuk memulai visual & mengaktifkan suara secara responsif.</p>
+</div>
+<!-- ========================================================================= -->
+
+<div id="game-container"></div>
+
+<div id="ui-layer" class="hidden">
+    <div class="hud-top">
+        <div class="hud-panel">
+            <div class="score-label">Distance / Score</div>
+            <div class="score-value" id="score-display">00000</div>
+            <div id="nos-bar-container"><div id="nos-bar"></div></div>
+        </div>
+        <div class="hud-panel" style="background: transparent; border: none; box-shadow: none; backdrop-filter: none;">
+            <div class="speed-wrapper">
+                <div class="speed-value" id="speedometer">0</div>
+                <div class="speed-label">KM/H</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- START SCREEN & SELECTION -->
+<div id="start-screen" class="screen">
+    <h1>WANGAN TOKYO HD</h1>
+    <div class="subtitle">SELECT CAR & MAP</div>
+    
+    <div id="selection-container">
+        <!-- Car Selection Row -->
+        <div class="selection-row">
+            <div class="list-container" id="car-list">
+                <!-- Diisi oleh JavaScript -->
+            </div>
+            <div class="stats-panel">
+                <h2 id="st-name" style="color:#00f3ff; margin-bottom: 5px; font-style:italic;">NISSAN SKYLINE R34</h2>
+                <div class="stat-row">
+                    <div class="stat-label">TOP SPEED</div>
+                    <div class="stat-bar-bg"><div class="stat-bar-fill" id="st-spd" style="background: #00f3ff; width: 80%;"></div></div>
+                </div>
+                <div class="stat-row">
+                    <div class="stat-label">ACCEL</div>
+                    <div class="stat-bar-bg"><div class="stat-bar-fill" id="st-acc" style="background: #ffaa00; width: 70%;"></div></div>
+                </div>
+                <div class="stat-row">
+                    <div class="stat-label">HANDLING</div>
+                    <div class="stat-bar-bg"><div class="stat-bar-fill" id="st-hnd" style="background: #ff007f; width: 75%;"></div></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Map Selection Row -->
+        <div class="selection-row">
+            <div class="list-container" id="map-list">
+                <!-- Diisi oleh JavaScript -->
+            </div>
+             <div class="stats-panel" style="border-color: #00f3ff;">
+                <h2 id="map-name" style="color:#ffaa00; margin-bottom: 5px; font-style:italic;">TOKYO (NIGHT)</h2>
+                <p id="map-desc" class="c-info" style="font-size: 1rem; color: #ccc;">
+                    Jalan tol metropolitan di malam hari. Penuh lampu neon, tikungan tajam, dan aspal basah yang licin.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls-info">
+        <div><span class="key-hl">W</span> Gas</div>
+        <div><span class="key-hl">S</span> Rem</div>
+        <div><span class="key-hl">A</span> Kiri</div>
+        <div><span class="key-hl">D</span> Kanan</div>
+        <div><span class="key-hl">Shift</span> NOS</div>
+    </div>
+
+    <!-- TOMBOL PLAY DARI KODE SEBELUMNYA (TIDAK DIRUBAH) -->
+    <button id="btn-start">▶ START RACE</button>
+</div>
+
+<!-- GAME OVER SCREEN -->
+<div id="game-over-screen" class="screen hidden">
+    <h1 style="color: #ff007f; text-shadow: 0 0 40px #ff0000, 5px 5px 0px #220000;">CRASHED</h1>
+    <div class="subtitle" style="color: #aaa; letter-spacing: 10px;">TOTAL SCORE</div>
+    <div class="score-value" id="final-score" style="font-size: 6rem; margin-bottom: 40px;">0</div>
+    <button id="btn-restart" style="background: #00f3ff; border:none; padding: 15px 40px; border-radius: 30px; font-size: 1.5rem; font-weight: 900; cursor: pointer; color: #000;">GARAGE / RETRY</button>
+</div>
+
+<script>
+/**
+ * WANGAN TOKYO HD - Penuh Fitur (3D, WASD, 10 Mobil, 4 Map, Audio, Visual Dalam)
+ */
+
+// --- DATA MAP KOTA JEPANG ---
+const MAP_DATABASE = [
+    { 
+        id: 'tokyo', name: "Tokyo (Night)", desc: "Metropolitan highway. Neon lights, wet asphalt, sharp turns.",
+        fogColor: 0x05020a, bgColor: 0x020105, ambientColor: 0x110822, dirLightColor: 0x2244ff,
+        roadRoughness: 0.1, // Basah mengkilap
+        envTexts: ["東京", "スピード", "夜間", "湾岸", "ドリフト"],
+        envTextColors: ['#00f3ff', '#ff007f', '#ffaa00']
+    },
+    { 
+        id: 'kyoto', name: "Kyoto (Autumn)", desc: "Mountain pass in autumn. Red leaves, sunset light, winding roads.",
+        fogColor: 0x331a00, bgColor: 0x221100, ambientColor: 0x442211, dirLightColor: 0xff6600,
+        roadRoughness: 0.8, // Aspal kering berdebu
+        envTexts: ["京都", "紅葉", "峠", "秋", "速度"],
+        envTextColors: ['#ff4500', '#ffcc00', '#aa3300']
+    },
+    { 
+        id: 'hokkaido', name: "Hokkaido (Winter)", desc: "Snowy expressway. Slippery icy road, whiteout conditions.",
+        fogColor: 0xaaccff, bgColor: 0x88aaff, ambientColor: 0x6688aa, dirLightColor: 0xccddff,
+        roadRoughness: 0.3, // Jalan es licin
+        envTexts: ["北海道", "雪道", "氷", "冬", "注意"],
+        envTextColors: ['#ffffff', '#00ffff', '#aaaaff']
+    },
+    { 
+        id: 'okinawa', name: "Okinawa (Coastal)", desc: "Tropical coastal highway. Bright sun, clear sky, long straights.",
+        fogColor: 0x0099ff, bgColor: 0x0077cc, ambientColor: 0x3399ff, dirLightColor: 0xffffaa,
+        roadRoughness: 0.5, // Aspal panas normal
+        envTexts: ["沖縄", "海", "太陽", "熱帯", "高速"],
+        envTextColors: ['#ffff00', '#00bfff', '#ff9900']
+    }
+];
+let selectedMapIndex = 0;
+
+// --- DATA 10 MOBIL ---
+const CAR_DATABASE = [
+    { id: 0, name: "Nissan Skyline GT-R R34", color: 0x0022ff, topSpeed: 140, accel: 35, handling: 20 },
+    { id: 1, name: "Nissan Fairlady Z (350Z)", color: 0xff4400, topSpeed: 135, accel: 32, handling: 22 },
+    { id: 2, name: "Honda S2000", color: 0xffff00, topSpeed: 130, accel: 38, handling: 25 },
+    { id: 3, name: "Mazda RX-8", color: 0xcc0000, topSpeed: 132, accel: 34, handling: 24 },
+    { id: 4, name: "Mazda RX-7 FD3S", color: 0x00ccff, topSpeed: 138, accel: 36, handling: 23 },
+    { id: 5, name: "Toyota Supra MK4", color: 0xffffff, topSpeed: 145, accel: 33, handling: 18 },
+    { id: 6, name: "Mitsubishi Lancer Evo IX", color: 0xcc0022, topSpeed: 136, accel: 40, handling: 21 },
+    { id: 7, name: "Subaru Impreza WRX STI", color: 0x0011aa, topSpeed: 135, accel: 42, handling: 20 },
+    { id: 8, name: "Toyota AE86 Trueno", color: 0xdddddd, topSpeed: 115, accel: 30, handling: 30 }, 
+    { id: 9, name: "Nissan Silvia S15", color: 0x11ff44, topSpeed: 134, accel: 34, handling: 26 }
+];
+let selectedCarIndex = 0;
+
+// --- SELECTION UI LOGIC ---
+const carListDiv = document.getElementById('car-list');
+const mapListDiv = document.getElementById('map-list');
+
+// Render Car List
+CAR_DATABASE.forEach((car, index) => {
+    const div = document.createElement('div');
+    div.className = `list-item car-item ${index === 0 ? 'active' : ''}`;
+    div.innerText = car.name;
+    div.onclick = () => selectCar(index);
+    carListDiv.appendChild(div);
+});
+
+// Render Map List
+MAP_DATABASE.forEach((map, index) => {
+    const div = document.createElement('div');
+    div.className = `list-item map-item ${index === 0 ? 'active' : ''}`;
+    div.innerText = map.name;
+    div.onclick = () => selectMap(index);
+    mapListDiv.appendChild(div);
+});
+
+function selectCar(index) {
+    selectedCarIndex = index;
+    document.querySelectorAll('.car-item').forEach((el, i) => el.classList.toggle('active', i === index));
+    
+    const car = CAR_DATABASE[index];
+    document.getElementById('st-name').innerText = car.name.toUpperCase();
+    document.getElementById('st-spd').style.width = `${(car.topSpeed / 150) * 100}%`;
+    document.getElementById('st-acc').style.width = `${(car.accel / 45) * 100}%`;
+    document.getElementById('st-hnd').style.width = `${(car.handling / 30) * 100}%`;
+
+    if(playerCar && playerCar.userData.bodyMaterial) {
+        playerCar.userData.bodyMaterial.color.setHex(car.color);
+    }
+}
+
+function selectMap(index) {
+    selectedMapIndex = index;
+    document.querySelectorAll('.map-item').forEach((el, i) => el.classList.toggle('active', i === index));
+    const map = MAP_DATABASE[index];
+    document.getElementById('map-name').innerText = map.name.toUpperCase();
+    document.getElementById('map-desc').innerText = map.desc;
+    
+    // Update environment preview in menu
+    const mapData = MAP_DATABASE[selectedMapIndex];
+    scene.fog.color.setHex(mapData.fogColor);
+    scene.background.setHex(mapData.bgColor);
+    ambientLight.color.setHex(mapData.ambientColor);
+    dirLight.color.setHex(mapData.dirLightColor);
+    if(roadMat) roadMat.roughness = mapData.roadRoughness;
+    
+    // Regenerate billboards for preview
+    billboards.forEach(b => envGroup.remove(b));
+    billboards.length = 0;
+    createBillboards();
+}
+
+// --- SISTEM AUDIO (Web Audio API) ---
+let audioCtx;
+let engineOsc, engineGain, bgmOsc;
+let isAudioInit = false;
+
+function initAudio() {
+    if(isAudioInit) return;
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContext();
+    
+    engineOsc = audioCtx.createOscillator();
+    engineOsc.type = 'sawtooth';
+    engineGain = audioCtx.createGain();
+    engineGain.gain.value = 0; 
+    
+    const engineFilter = audioCtx.createBiquadFilter();
+    engineFilter.type = 'lowpass';
+    engineFilter.frequency.value = 1000;
+    
+    engineOsc.connect(engineFilter);
+    engineFilter.connect(engineGain);
+    engineGain.connect(audioCtx.destination);
+    engineOsc.start();
+    
+    bgmOsc = audioCtx.createOscillator();
+    bgmOsc.type = 'square';
+    bgmOsc.frequency.value = 55; 
+    const bgmGain = audioCtx.createGain();
+    bgmGain.gain.value = 0.05;
+    
+    const bgmFilter = audioCtx.createBiquadFilter();
+    bgmFilter.type = 'lowpass';
+    bgmFilter.frequency.value = 200;
+    
+    bgmOsc.connect(bgmFilter);
+    bgmFilter.connect(bgmGain);
+    bgmGain.connect(audioCtx.destination);
+    bgmOsc.start();
+
+    const lfo = audioCtx.createOscillator();
+    lfo.frequency.value = 2; 
+    const lfoGain = audioCtx.createGain();
+    lfoGain.gain.value = 50;
+    lfo.connect(lfoGain);
+    lfoGain.connect(bgmFilter.frequency);
+    lfo.start();
+
+    isAudioInit = true;
+}
+
+function playCrashSound() {
+    if(!isAudioInit) return;
+    const osc = audioCtx.createOscillator();
+    osc.type = 'square';
+    const gain = audioCtx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+    
+    gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+    
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.5);
+}
+
+function updateEngineSound(currentSpeed, isBraking, isNOS) {
+    if(!isAudioInit) return;
+    
+    if (currentSpeed > 0) {
+        const targetFreq = 50 + (currentSpeed * 1.5);
+        engineOsc.frequency.setTargetAtTime(isNOS ? targetFreq * 1.5 : targetFreq, audioCtx.currentTime, 0.1);
+        engineGain.gain.setTargetAtTime(0.1 + (currentSpeed/150)*0.1, audioCtx.currentTime, 0.1);
+    } else {
+        engineOsc.frequency.setTargetAtTime(40, audioCtx.currentTime, 0.1); 
+        engineGain.gain.setTargetAtTime(0.05, audioCtx.currentTime, 0.1);
+    }
+
+    if (isBraking && currentSpeed > 30) {
+        engineOsc.frequency.setTargetAtTime(200, audioCtx.currentTime, 0.05);
+    }
+}
+
+
+// --- STATE & KONTROL (WASD) ---
+const STATE = { MENU: 0, PLAYING: 1, CRASHED: 2 };
+let currentState = STATE.MENU;
+
+const keys = { w:false, a:false, s:false, d:false, shift:false };
+
+window.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    if (k==='w' || e.code==='ArrowUp') keys.w = true;    
+    if (k==='s' || e.code==='ArrowDown') keys.s = true;  
+    if (k==='a' || e.code==='ArrowLeft') keys.a = true;  
+    if (k==='d' || e.code==='ArrowRight') keys.d = true; 
+    if (e.code==='ShiftLeft' || e.code==='ShiftRight') keys.shift = true;
+});
+window.addEventListener('keyup', (e) => {
+    const k = e.key.toLowerCase();
+    if (k==='w' || e.code==='ArrowUp') keys.w = false;
+    if (k==='s' || e.code==='ArrowDown') keys.s = false;
+    if (k==='a' || e.code==='ArrowLeft') keys.a = false;
+    if (k==='d' || e.code==='ArrowRight') keys.d = false;
+    if (e.code==='ShiftLeft' || e.code==='ShiftRight') keys.shift = false;
+});
+
+// --- THREE.JS SETUP (DEEP COLORING HD) ---
+const container = document.getElementById('game-container');
+const scene = new THREE.Scene();
+
+// Initial map settings (Tokyo default)
+const initialMap = MAP_DATABASE[0];
+scene.fog = new THREE.FogExp2(initialMap.fogColor, 0.015); 
+scene.background = new THREE.Color(initialMap.bgColor);
+
+const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.9; 
+renderer.outputEncoding = THREE.sRGBEncoding;
+container.appendChild(renderer.domElement);
+
+const ambientLight = new THREE.AmbientLight(initialMap.ambientColor, 1.0); 
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(initialMap.dirLightColor, 1.0);
+dirLight.position.set(-50, 100, -20);
+dirLight.castShadow = true;
+scene.add(dirLight);
+
+function createJapaneseNeon(textStr, colorHex) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512; canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    
+    ctx.clearRect(0,0,512,128);
+    ctx.font = 'bold 80px "MS Gothic", "Hiragino Kaku Gothic ProN", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    
+    ctx.shadowColor = colorHex;
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = '#ffffff';
+    
+    ctx.fillText(textStr, 256, 64);
+    ctx.fillText(textStr, 256, 64);
+    
+    return new THREE.CanvasTexture(canvas);
+}
+
+const envGroup = new THREE.Group();
+scene.add(envGroup);
+
+const canvasRoad = document.createElement('canvas');
+canvasRoad.width = 256; canvasRoad.height = 256;
+const ctxRoad = canvasRoad.getContext('2d');
+ctxRoad.fillStyle = '#020202'; ctxRoad.fillRect(0,0,256,256);
+for(let i=0; i<5000; i++) {
+    ctxRoad.fillStyle = Math.random()>0.5?'rgba(255,255,255,0.02)':'rgba(0,0,0,0.5)';
+    ctxRoad.fillRect(Math.random()*256, Math.random()*256, 2, 2);
+}
+const roadTex = new THREE.CanvasTexture(canvasRoad);
+roadTex.wrapS = THREE.RepeatWrapping; roadTex.wrapT = THREE.RepeatWrapping;
+roadTex.repeat.set(4, 40);
+
+const roadMat = new THREE.MeshStandardMaterial({ 
+    color: 0x050505, map: roadTex,
+    roughness: initialMap.roadRoughness, metalness: 0.8 
+});
+const road = new THREE.Mesh(new THREE.PlaneGeometry(40, 2000), roadMat);
+road.rotation.x = -Math.PI / 2;
+road.position.z = -800;
+road.receiveShadow = true;
+envGroup.add(road);
+
+const markerMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x555555 });
+const markers = [];
+for(let i=0; i<40; i++) {
+    const m1 = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 6), markerMat); m1.rotation.x = -Math.PI/2; m1.position.set(-6.5, 0.05, -i*25);
+    const m2 = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 6), markerMat); m2.rotation.x = -Math.PI/2; m2.position.set(6.5, 0.05, -i*25);
+    envGroup.add(m1, m2); markers.push(m1, m2);
+}
+
+const railMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9, roughness: 0.2 });
+const neonCyanMat = new THREE.MeshStandardMaterial({ color: 0x00f3ff, emissive: 0x00f3ff, emissiveIntensity: 3 });
+const neonPinkMat = new THREE.MeshStandardMaterial({ color: 0xff007f, emissive: 0xff007f, emissiveIntensity: 3 });
+
+const railL = new THREE.Mesh(new THREE.BoxGeometry(1, 1.5, 2000), railMat); railL.position.set(-20, 0.75, -800);
+const railR = new THREE.Mesh(new THREE.BoxGeometry(1, 1.5, 2000), railMat); railR.position.set(20, 0.75, -800);
+envGroup.add(railL, railR);
+
+const stripL = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.1, 2000), neonCyanMat); stripL.position.set(-20, 1.2, -800);
+const stripR = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.1, 2000), neonPinkMat); stripR.position.set(20, 1.2, -800);
+envGroup.add(stripL, stripR);
+
+const billboards = [];
+
+function createBillboards() {
+    const mapData = MAP_DATABASE[selectedMapIndex];
+    const jpTexts = mapData.envTexts;
+    const jpColors = mapData.envTextColors;
+
+    for(let i=0; i<15; i++) {
+        const text = jpTexts[Math.floor(Math.random()*jpTexts.length)];
+        const color = jpColors[Math.floor(Math.random()*jpColors.length)];
+        const tex = createJapaneseNeon(text, color);
+        
+        const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, blending: THREE.AdditiveBlending });
+        const board = new THREE.Mesh(new THREE.PlaneGeometry(20, 5), mat);
+        
+        board.position.set((Math.random()>0.5?15:-15), 10 + Math.random()*10, -Math.random()*1000);
+        if(Math.random()>0.5) { 
+            board.position.x = 0; board.position.y = 15;
+        } else {
+            board.rotation.y = board.position.x > 0 ? -Math.PI/4 : Math.PI/4;
+        }
+        
+        envGroup.add(board);
+        billboards.push(board);
+    }
+}
+createBillboards();
+
+const speedLinesGeo = new THREE.BufferGeometry();
+const linePos = new Float32Array(150 * 3);
+for(let i=0; i<150*3; i+=3) {
+    linePos[i] = (Math.random()-0.5) * 60;
+    linePos[i+1] = 1 + Math.random() * 10;
+    linePos[i+2] = -Math.random() * 500;
+}
+speedLinesGeo.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
+const speedLines = new THREE.Points(speedLinesGeo, new THREE.PointsMaterial({color: 0x00f3ff, size: 0.5, transparent: true, opacity: 0.5}));
+envGroup.add(speedLines);
+
+function createPlayerCar() {
+    const carGroup = new THREE.Group();
+    const bodyMat = new THREE.MeshStandardMaterial({ 
+        color: CAR_DATABASE[selectedCarIndex].color, 
+        metalness: 0.9, roughness: 0.1, clearcoat: 1.0 
+    });
+    const blackMat = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.9 });
+    const emissiveRed = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 5 });
+
+    const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.7, 5.2), bodyMat);
+    chassis.position.y = 0.5; chassis.castShadow = true;
+    carGroup.add(chassis);
+    carGroup.userData.bodyMaterial = bodyMat; 
+
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.5, 2.6), new THREE.MeshStandardMaterial({ color: 0x000000, metalness: 1.0, roughness: 0.0 }));
+    cabin.position.set(0, 1.1, -0.3);
+    carGroup.add(cabin);
+
+    const wheelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.5, 24); wheelGeo.rotateZ(Math.PI/2);
+    const wheels = [];
+    [[-1.2, 0.4, 1.6], [1.2, 0.4, 1.6], [-1.2, 0.4, -1.6], [1.2, 0.4, -1.6]].forEach(pos => {
+        const wGroup = new THREE.Group(); wGroup.position.set(...pos);
+        const tire = new THREE.Mesh(wheelGeo, blackMat); tire.castShadow = true;
+        wGroup.add(tire); carGroup.add(wGroup); wheels.push(wGroup);
+    });
+    carGroup.userData.wheels = wheels;
+
+    const hl = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.15, 0.2), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 4 }));
+    hl.position.set(0, 0.65, -2.6);
+    carGroup.add(hl);
+    
+    const spotL = new THREE.SpotLight(0xffffff, 8, 100, Math.PI/6, 0.5, 1);
+    spotL.position.set(-0.8, 0.6, -2.6); spotL.target.position.set(-0.8, 0, -40);
+    carGroup.add(spotL, spotL.target);
+
+    const tailLight = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.15, 0.1), emissiveRed);
+    tailLight.position.set(0, 0.75, 2.6);
+    carGroup.add(tailLight);
+    
+    const tailGlow = new THREE.PointLight(0xff0000, 3, 10);
+    tailGlow.position.set(0, 0.5, 3);
+    carGroup.add(tailGlow);
+
+    const spWing = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.05, 0.5), bodyMat); spWing.position.set(0, 1.2, 2.5);
+    carGroup.add(spWing);
+
+    const fMat = new THREE.MeshBasicMaterial({color: 0x00f3ff, transparent: true, blending: THREE.AdditiveBlending});
+    const fGeo = new THREE.ConeGeometry(0.3, 1.5, 8); fGeo.rotateX(Math.PI/2);
+    const fL = new THREE.Mesh(fGeo, fMat); fL.position.set(-0.8, 0.3, 3.2); fL.visible = false;
+    const fR = new THREE.Mesh(fGeo, fMat); fR.position.set(0.8, 0.3, 3.2); fR.visible = false;
+    carGroup.add(fL, fR);
+    carGroup.userData.flames = [fL, fR];
+
+    return carGroup;
+}
+
+let playerCar = createPlayerCar();
+playerCar.position.set(0, 0, -5);
+scene.add(playerCar);
+
+let trafficCars = [];
+
+let speed = 0; let distance = 0; let score = 0; let nos = 100;
+let currentMaxSpeed, currentAccel, currentHandling;
+
+
+// --- EVENT LISTENER UNTUK TOMBOL PLAY UTAMA & START ---
+document.getElementById('btn-start').addEventListener('click', () => {
+    initAudio(); // Berjaga-jaga jika terlewat
+    startGame();
+});
+
+document.getElementById('btn-restart').addEventListener('click', () => {
+    document.getElementById('game-over-screen').classList.add('hidden');
+    document.getElementById('start-screen').classList.remove('hidden');
+    currentState = STATE.MENU;
+    playerCar.position.set(0,0,-5);
+    playerCar.rotation.set(0,0,0);
+    // Reset to map selection preview
+    const mapData = MAP_DATABASE[selectedMapIndex];
+    scene.fog.color.setHex(mapData.fogColor);
+    scene.background.setHex(mapData.bgColor);
+    ambientLight.color.setHex(mapData.ambientColor);
+    dirLight.color.setHex(mapData.dirLightColor);
+    if(roadMat) roadMat.roughness = mapData.roadRoughness;
+    billboards.forEach(b => envGroup.remove(b));
+    billboards.length = 0;
+    createBillboards();
+});
+
+function spawnTraffic() {
+    trafficCars.forEach(c => scene.remove(c.mesh));
+    trafficCars = [];
+    for(let i=0; i<12; i++) {
+        createTrafficCar(-100 - (i*50));
+    }
+}
+
+function createTrafficCar(z) {
+    const tGroup = new THREE.Group();
+    const cMat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color().setHSL(Math.random(), 0.8, 0.2), 
+        roughness: 0.3, metalness: 0.8
+    });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.2, 4.8), cMat);
+    body.position.y = 0.6; body.castShadow = true;
+    
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(2, 0.2, 0.1), new THREE.MeshStandardMaterial({color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 2}));
+    tl.position.set(0, 0.5, 2.4);
+    
+    tGroup.add(body, tl);
+    
+    const lanes = [-7, 0, 7];
+    tGroup.position.set(lanes[Math.floor(Math.random()*lanes.length)], 0, z);
+    
+    scene.add(tGroup);
+    trafficCars.push({ mesh: tGroup, speed: 40 + Math.random()*20 });
+}
+
+function startGame() {
+    document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+    document.getElementById('ui-layer').classList.remove('hidden');
+    
+    const cData = CAR_DATABASE[selectedCarIndex];
+    currentMaxSpeed = cData.topSpeed;
+    currentAccel = cData.accel;
+    currentHandling = cData.handling;
+
+    // Apply selected map settings
+    const mapData = MAP_DATABASE[selectedMapIndex];
+    scene.fog.color.setHex(mapData.fogColor);
+    scene.background.setHex(mapData.bgColor);
+    ambientLight.color.setHex(mapData.ambientColor);
+    dirLight.color.setHex(mapData.dirLightColor);
+    if(roadMat) roadMat.roughness = mapData.roadRoughness;
+    
+    // Regenerate billboards for game
+    billboards.forEach(b => envGroup.remove(b));
+    billboards.length = 0;
+    createBillboards();
+    
+    speed = 0; distance = 0; score = 0; nos = 100;
+    playerCar.position.set(0, 0, -10);
+    playerCar.rotation.set(0,0,0);
+    
+    spawnTraffic();
+    currentState = STATE.PLAYING;
+}
+
+function triggerCrash() {
+    currentState = STATE.CRASHED;
+    playCrashSound(); 
+    if(isAudioInit) {
+        engineGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
+    }
+
+    document.getElementById('final-score').innerText = Math.floor(score);
+    document.getElementById('ui-layer').classList.add('hidden');
+    setTimeout(() => { document.getElementById('game-over-screen').classList.remove('hidden'); }, 1000);
+    
+    speed = 0;
+    playerCar.rotation.z = Math.PI / 4;
+    playerCar.rotation.x = -Math.PI / 6;
+    playerCar.position.y += 1;
+}
+
+const clock = new THREE.Clock();
+
+function animate() {
+    requestAnimationFrame(animate);
+    const dt = Math.min(clock.getDelta(), 0.1);
+
+    if (currentState === STATE.PLAYING) {
+        let maxS = keys.shift && nos > 0 ? currentMaxSpeed * 1.4 : currentMaxSpeed;
+
+        if (keys.w) { 
+            speed = Math.min(speed + currentAccel * dt, maxS);
+        } else if (keys.s) { 
+            speed = Math.max(speed - 80 * dt, 0); 
+        } else {
+            speed = Math.max(speed - 15 * dt, 0);
+        }
+
+        if (keys.shift && nos > 0 && speed > 20) {
+            nos -= 30 * dt;
+            playerCar.userData.flames.forEach(f => {
+                f.visible = true; 
+                f.scale.set(1+Math.random()*0.5, 1+Math.random()*2, 1);
+            });
+        } else {
+            if(!keys.shift && nos < 100) nos += 5 * dt;
+            playerCar.userData.flames.forEach(f => f.visible = false);
+        }
+
+        let steerAmt = currentHandling * (Math.min(speed, 60)/60);
+        if (keys.a) playerCar.position.x += steerAmt * dt; 
+        if (keys.d) playerCar.position.x -= steerAmt * dt; 
+        
+        playerCar.position.x = Math.max(-17, Math.min(17, playerCar.position.x));
+
+        let targetTilt = 0;
+        if (keys.a) targetTilt = 0.15;
+        if (keys.d) targetTilt = -0.15;
+        playerCar.rotation.z = THREE.MathUtils.lerp(playerCar.rotation.z, targetTilt, dt*10);
+        playerCar.rotation.y = THREE.MathUtils.lerp(playerCar.rotation.y, targetTilt*0.8, dt*10);
+        playerCar.userData.wheels.forEach(w => w.rotation.x -= speed * dt * 0.4);
+
+        updateEngineSound(speed, keys.s, keys.shift && nos > 0);
+
+        const moveDist = speed * dt;
+        distance += moveDist;
+        score += moveDist * 0.5;
+
+        markers.forEach(m => {
+            m.position.z += moveDist;
+            if(m.position.z > camera.position.z + 10) m.position.z -= 1000;
+        });
+        
+        billboards.forEach(b => {
+            b.position.z += moveDist;
+            if(b.position.z > camera.position.z + 20) {
+                b.position.z -= 1000 + Math.random()*500;
+            }
+        });
+
+        const positions = speedLinesGeo.attributes.position.array;
+        for(let i=2; i<150*3; i+=3) {
+            positions[i] += (moveDist * 2) + 2;
+            if(positions[i] > camera.position.z) {
+                positions[i] -= 500;
+                positions[i-2] = (Math.random()-0.5) * 60; 
+            }
+        }
+        speedLinesGeo.attributes.position.needsUpdate = true;
+
+        trafficCars.forEach(tc => {
+            tc.mesh.position.z += (speed - tc.speed) * dt;
+            if(tc.mesh.position.z > camera.position.z + 20) {
+                tc.mesh.position.z -= 600 + Math.random()*300;
+                const lanes = [-7, 0, 7];
+                tc.mesh.position.x = lanes[Math.floor(Math.random()*lanes.length)];
+                tc.speed = 40 + Math.random()*20;
+            }
+
+            const pBox = new THREE.Box3().setFromObject(playerCar);
+            const tBox = new THREE.Box3().setFromObject(tc.mesh);
+            pBox.expandByScalar(-0.3); tBox.expandByScalar(-0.3); 
+            
+            if(pBox.intersectsBox(tBox)) triggerCrash();
+        });
+
+        document.getElementById('score-display').innerText = Math.floor(score).toString().padStart(6, '0');
+        document.getElementById('speedometer').innerText = Math.floor(speed * 3.6);
+        document.getElementById('nos-bar').style.width = Math.max(0, nos) + '%';
+
+        const speedFactor = speed / currentMaxSpeed;
+        const targetCamZ = playerCar.position.z + 7 + (speedFactor * 4);
+        const targetCamY = playerCar.position.y + 2.5 - (speedFactor * 0.5);
+        
+        camera.position.x = THREE.MathUtils.lerp(camera.position.x, playerCar.position.x * 0.5, dt * 5);
+        camera.position.y = THREE.MathUtils.lerp(camera.position.y, targetCamY, dt * 5);
+        camera.position.z = THREE.MathUtils.lerp(camera.position.z, targetCamZ, dt * 10);
+        
+        camera.fov = THREE.MathUtils.lerp(camera.fov, 65 + (speedFactor * 15), dt * 5);
+        camera.updateProjectionMatrix();
+        
+        camera.lookAt(playerCar.position.x * 0.2, playerCar.position.y + 0.5, playerCar.position.z - 30);
+        
+        if(speed > 100) {
+            camera.position.x += (Math.random()-0.5)*0.08;
+            camera.position.y += (Math.random()-0.5)*0.08;
+        }
+    }
+    
+    if (currentState === STATE.MENU) {
+        camera.position.set(10, 5, 10);
+        camera.lookAt(0,0,-10);
+        playerCar.rotation.y += 0.005; 
+    }
+
+    renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// --- LOGIKA UNTUK MENGHILANGKAN OVERLAY PLAY RAKSASA ---
+document.getElementById('the-giant-play-btn').addEventListener('click', () => {
+    document.getElementById('play-button-overlay').style.display = 'none';
+    initAudio(); // Aktifkan sistem audio responsif!
+});
+
+animate();
+</script>
+</body>
+</html>
