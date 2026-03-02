@@ -156,6 +156,25 @@
             100% { box-shadow: 0 0 20px rgba(0, 243, 255, 0.4); }
         }
 
+        /* --- TAMBAHAN: MOBILE CONTROLS UI --- */
+        #mobile-controls {
+            display: none; /* Sembunyikan secara default (untuk PC) */
+            width: 100%; justify-content: space-between; align-items: flex-end;
+            margin-top: auto; padding-bottom: 20px;
+            pointer-events: none; /* Agar tidak memblokir klik lain */
+        }
+        .m-pad { display: flex; gap: 15px; pointer-events: auto; }
+        .m-btn {
+            background: rgba(255,255,255,0.1); border: 2px solid #00f3ff;
+            color: #fff; font-size: 1.2rem; font-weight: 900;
+            width: 65px; height: 65px; border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            user-select: none; touch-action: none; backdrop-filter: blur(5px);
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+        }
+        .m-btn:active { background: rgba(0, 243, 255, 0.5); transform: scale(0.95); }
+        .m-btn.btn-wide { width: 80px; border-radius: 30px; border-color: #ff007f; box-shadow: 0 0 15px rgba(255, 0, 127, 0.3); }
+
         .hidden { display: none !important; opacity: 0; pointer-events: none; }
         
         /* --- TAMBAHAN: RESPONSIVE UNTUK MOBILE AGAR LAYAR TIDAK KEPOTONG --- */
@@ -176,6 +195,9 @@
             #btn-start { padding: 15px 30px; font-size: 1.2rem; bottom: 10px; width: 90%; text-align: center; }
             #the-giant-play-btn { width: 100px !important; height: 100px !important; }
             #the-giant-play-btn svg { width: 50px !important; height: 50px !important; margin-left: 10px !important; }
+            
+            /* Tampilkan Mobile Controls di HP */
+            #mobile-controls { display: flex; }
         }
 
         /* --- STYLE UNTUK OVERLAY TOMBOL PLAY BARU --- */
@@ -215,6 +237,21 @@
             <div class="speed-wrapper">
                 <div class="speed-value" id="speedometer">0</div>
                 <div class="speed-label">KM/H</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- TAMBAHAN: D-PAD & ACTION PAD UNTUK MOBILE -->
+    <div id="mobile-controls">
+        <div class="m-pad">
+            <div class="m-btn" id="m-left">◀</div>
+            <div class="m-btn" id="m-right">▶</div>
+        </div>
+        <div class="m-pad" style="flex-direction: column; align-items: flex-end; gap: 10px;">
+            <div class="m-btn btn-wide" id="m-nos" style="font-size: 0.9rem;">NOS</div>
+            <div style="display: flex; gap: 15px;">
+                <div class="m-btn" id="m-brake" style="background: rgba(255,0,0,0.2); border-color: red;">■</div>
+                <div class="m-btn" id="m-gas" style="background: rgba(0,255,0,0.2); border-color: lime;">▲</div>
             </div>
         </div>
     </div>
@@ -609,28 +646,85 @@ envGroup.add(stripL, stripR);
 
 const billboards = [];
 
+// DIRUBAH: Fungsi disesuaikan untuk men-generate bentuk 3D unik tergantung map (Neon, Torii, Pohon, dll)
 function createBillboards() {
     const mapData = MAP_DATABASE[selectedMapIndex];
-    const jpTexts = mapData.envTexts;
-    const jpColors = mapData.envTextColors;
+    
+    // Matikan lampu neon pinggir jalan jika bukan di Tokyo
+    if(stripL) stripL.visible = (mapData.id === 'tokyo');
+    if(stripR) stripR.visible = (mapData.id === 'tokyo');
 
-    for(let i=0; i<15; i++) {
-        const text = jpTexts[Math.floor(Math.random()*jpTexts.length)];
-        const color = jpColors[Math.floor(Math.random()*jpColors.length)];
-        const tex = createJapaneseNeon(text, color);
-        
-        const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, blending: THREE.AdditiveBlending });
-        const board = new THREE.Mesh(new THREE.PlaneGeometry(20, 5), mat);
-        
-        board.position.set((Math.random()>0.5?15:-15), 10 + Math.random()*10, -Math.random()*1000);
-        if(Math.random()>0.5) { 
-            board.position.x = 0; board.position.y = 15;
-        } else {
-            board.rotation.y = board.position.x > 0 ? -Math.PI/4 : Math.PI/4;
+    if (mapData.id === 'tokyo') {
+        // --- LOGIKA LAMA: TOKYO NEON ---
+        const jpTexts = mapData.envTexts;
+        const jpColors = mapData.envTextColors;
+
+        for(let i=0; i<15; i++) {
+            const text = jpTexts[Math.floor(Math.random()*jpTexts.length)];
+            const color = jpColors[Math.floor(Math.random()*jpColors.length)];
+            const tex = createJapaneseNeon(text, color);
+            
+            const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, blending: THREE.AdditiveBlending });
+            const board = new THREE.Mesh(new THREE.PlaneGeometry(20, 5), mat);
+            
+            board.position.set((Math.random()>0.5?15:-15), 10 + Math.random()*10, -Math.random()*1000);
+            if(Math.random()>0.5) { 
+                board.position.x = 0; board.position.y = 15;
+            } else {
+                board.rotation.y = board.position.x > 0 ? -Math.PI/4 : Math.PI/4;
+            }
+            
+            envGroup.add(board);
+            billboards.push(board);
         }
-        
-        envGroup.add(board);
-        billboards.push(board);
+    } else {
+        // --- LOGIKA BARU: OBJEK 3D UNTUK MAP LAIN ---
+        const matWood = new THREE.MeshStandardMaterial({color: 0x3d2314, roughness: 1.0}); // Batang pohon
+        const matLeavesAut = new THREE.MeshStandardMaterial({color: 0xff5500, roughness: 0.9}); // Daun Musim Gugur
+        const matLeavesPine = new THREE.MeshStandardMaterial({color: 0xddeeff, roughness: 0.8}); // Pinus Salju
+        const matLeavesPalm = new THREE.MeshStandardMaterial({color: 0x228b22, roughness: 0.7}); // Palem Pantai
+        const matTorii = new THREE.MeshStandardMaterial({color: 0xcc0000, roughness: 0.4}); // Merah Torii
+
+        for(let i=0; i<25; i++) { 
+            let propGroup = new THREE.Group();
+            let zPos = -Math.random() * 1200;
+            let isLeft = Math.random() > 0.5;
+            let xPos = isLeft ? -15 - Math.random()*5 : 15 + Math.random()*5;
+
+            if (mapData.id === 'kyoto') {
+                if (i % 4 === 0) { 
+                    // Bikin Gerbang Torii Raksasa Melintang
+                    const pL = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 15), matTorii); pL.position.set(-13, 7.5, 0);
+                    const pR = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 15), matTorii); pR.position.set(13, 7.5, 0);
+                    const top1 = new THREE.Mesh(new THREE.BoxGeometry(32, 1.5, 1.5), matTorii); top1.position.set(0, 14, 0);
+                    const top2 = new THREE.Mesh(new THREE.BoxGeometry(28, 1, 1), matTorii); top2.position.set(0, 11, 0);
+                    propGroup.add(pL, pR, top1, top2);
+                    xPos = 0; // Torii harus di tengah jalan
+                } else { 
+                    // Pohon Musim Gugur
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 1, 6), matWood); trunk.position.y = 3;
+                    const leaves = new THREE.Mesh(new THREE.DodecahedronGeometry(4), matLeavesAut); leaves.position.y = 7;
+                    propGroup.add(trunk, leaves);
+                }
+            } else if (mapData.id === 'hokkaido') {
+                // Pohon Pinus (Es)
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 4), matWood); trunk.position.y = 2;
+                const leaves1 = new THREE.Mesh(new THREE.ConeGeometry(3.5, 7, 7), matLeavesPine); leaves1.position.y = 5.5;
+                const leaves2 = new THREE.Mesh(new THREE.ConeGeometry(2.5, 6, 7), matLeavesPine); leaves2.position.y = 9;
+                propGroup.add(trunk, leaves1, leaves2);
+            } else if (mapData.id === 'okinawa') {
+                // Pohon Palem Tropis
+                const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.6, 10), matWood); 
+                trunk.position.y = 5; trunk.rotation.z = isLeft ? 0.15 : -0.15; // Batang melengkung
+                const leaves = new THREE.Mesh(new THREE.SphereGeometry(3, 6, 6), matLeavesPalm); 
+                leaves.position.y = 10; leaves.position.x = isLeft ? -1 : 1; leaves.scale.y = 0.4;
+                propGroup.add(trunk, leaves);
+            }
+
+            propGroup.position.set(xPos, 0, zPos);
+            envGroup.add(propGroup);
+            billboards.push(propGroup); // Tetap dimasukkan ke array billboards agar ikut berjalan di fungsi animate()
+        }
     }
 }
 createBillboards();
@@ -1035,6 +1129,25 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
+
+// --- TAMBAHAN: EVENT LISTENER UNTUK MOBILE TOUCH CONTROLS ---
+const mControls = {
+    'm-gas': 'w',
+    'm-brake': 's',
+    'm-left': 'a',
+    'm-right': 'd',
+    'm-nos': 'shift'
+};
+for (let id in mControls) {
+    const btn = document.getElementById(id);
+    if(btn) {
+        const keyName = mControls[id];
+        // e.preventDefault() memblokir fungsi scroll/zoom hp bawaan saat memencet tombol
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; });
+        btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; });
+        btn.addEventListener('touchcancel', (e) => { e.preventDefault(); keys[keyName] = false; });
+    }
+}
 
 // --- LOGIKA UNTUK MENGHILANGKAN OVERLAY PLAY RAKSASA ---
 document.getElementById('the-giant-play-btn').addEventListener('click', () => {
